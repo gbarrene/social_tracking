@@ -124,7 +124,7 @@ def embeddingUnknownFaces(unknownPath, sess, embeddings,
 			plt.imshow(img[y0:y1,x0:x1])
 
 	# Computation of the embeddings for unknown faces
-	print('computing embeddings')
+	#print('computing embeddings')
 	size = 160
 	margin = 32
 
@@ -160,7 +160,7 @@ def embeddingUnknownFaces(unknownPath, sess, embeddings,
 		}
 
 		unknownFaces_embs.append(sess.run(embeddings, feed_dict))
-	print('done!')
+	#print('done!')
 	
 	return unknownFaces_embs, unknownFaceCenter
 
@@ -168,6 +168,14 @@ def getNamesAndCoordinates(unknownFaces_embs, knownFaces_embs, unknownFaceCenter
 	# return a matrix of euclidian distance pair by pairs
 	dist = distance.cdist(unknownFaces_embs,
                       knownFaces_embs)
+                      
+	distest = dist.copy()
+    
+	while distest.size:     
+		print('hello')           
+		where = np.where(distest == distest.min())
+		print(where)
+		distest.delete(where)
 	
 	# We look for the index that minimize the euclidian distance 
 	# for each row of the euclidian distance pair by pairs matrix
@@ -177,13 +185,12 @@ def getNamesAndCoordinates(unknownFaces_embs, knownFaces_embs, unknownFaceCenter
 	print('centerCoordinate', len(unknownFaceCenter))
 	for i, index in enumerate(minIndex):
 		print(index)
-		k = names[index]
-		print('name', k)
-		v = unknownFaceCenter[i]
-		print('center' , v)
+		n = names[index]
+		print('name', n)
+		c = unknownFaceCenter[i]
+		print('center' , c)
 		d = dist[i][index]
 		print("distance", d)
-		#dictionary[names[index]]  = unknownFaceCenter[index]
 		
-	return dictionary
+	return n, c, d
 	
