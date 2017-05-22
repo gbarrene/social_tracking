@@ -171,11 +171,19 @@ def getNamesAndCoordinates(unknownFaces_embs, knownFaces_embs, unknownFaceCenter
                       
 	distest = dist.copy()
     
-	while distest.size:     
+	for i in range (distest.shape[0]):     
 		print('hello')           
 		where = np.where(distest == distest.min())
-		print(where)
-		distest.delete(where)
+		n = names[int(where[1])]
+		print('name', n)
+		c = unknownFaceCenter[int(where[0])]
+		print('center' , c)
+		d = distest.min()
+		print("distance", d)
+		distest[where[0]] = np.inf
+		distest[:, where[1]] = np.inf
+		print('pouet')
+		#distest.delete(where)
 	
 	# We look for the index that minimize the euclidian distance 
 	# for each row of the euclidian distance pair by pairs matrix
@@ -184,13 +192,13 @@ def getNamesAndCoordinates(unknownFaces_embs, knownFaces_embs, unknownFaceCenter
 	dictionary = dict()
 	print('centerCoordinate', len(unknownFaceCenter))
 	for i, index in enumerate(minIndex):
-		print(index)
+		#print(index)
 		n = names[index]
-		print('name', n)
+		#print('name', n)
 		c = unknownFaceCenter[i]
-		print('center' , c)
+		#print('center' , c)
 		d = dist[i][index]
-		print("distance", d)
+		#print("distance", d)
 		
 	return n, c, d
 	
