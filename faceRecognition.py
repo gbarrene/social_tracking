@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import scipy.spatial.distance as distance
+from munkres import Munkres
 
 def embeddingKnownFaces(pathsKnown, names, sess, embeddings, 
 	images_in, phase_train_in, pnet, rnet, onet, 
@@ -18,7 +19,7 @@ def embeddingKnownFaces(pathsKnown, names, sess, embeddings,
 	knownFace = []
 	print('detecting faces...')
 	for path in pathsKnown:
-		display(Image(path))
+		#display(Image(path))
 		img = scipy.misc.imread(path)
 		bbs, kps = align.detect_face.detect_face(img, minsize, 
 												 pnet, rnet, onet, 
@@ -35,7 +36,7 @@ def embeddingKnownFaces(pathsKnown, names, sess, embeddings,
 			knownKeypoints.append(kps)
 			
 			# Display the face only in order to check if the face was 
-			#correctly detected
+			# correctly detected
 			margin = 32
 			# Extract the position of the face from bbs
 			for x0,y0,x1,y1,_ in bbs.astype(np.int32):
@@ -43,12 +44,12 @@ def embeddingKnownFaces(pathsKnown, names, sess, embeddings,
 				y0 = np.maximum(y0 - margin//2, 0)
 				x1 = np.minimum(x1 + margin//2, img.shape[1])
 				y1 = np.minimum(y1 + margin//2, img.shape[0])
-				plt.imshow(img[y0:y1,x0:x1])
+				#plt.imshow(img[y0:y1,x0:x1])
 					 
-	print('done!')  
+	#print('done!')  
 		
 	# Computation of the embeddings for known faces
-	print('computing embeddings')
+	#print('computing embeddings')
 	size = 160
 	margin = 32
 
@@ -98,12 +99,12 @@ def embeddingUnknownFaces(unknownPath, sess, embeddings,
 	unknownKeypoints = []
 	
 	img = scipy.misc.imread(unknownPath) 
-	display(Image(unknownPath))
+	#display(Image(unknownPath))
 	bbs, kps = align.detect_face.detect_face(img, minsize, 
 												 pnet, rnet, onet, threshold, factor)
 												
 	kps = np.asarray(kps)
-	print(kps.shape)
+	#print(kps.shape)
 	kps = kps.reshape([2,5,-1]).T
 		
 	# Check if a face has been detected
@@ -121,7 +122,7 @@ def embeddingUnknownFaces(unknownPath, sess, embeddings,
 			y0 = np.maximum(y0 - margin//2, 0)
 			x1 = np.minimum(x1 + margin//2, img.shape[1])
 			y1 = np.minimum(y1 + margin//2, img.shape[0])
-			plt.imshow(img[y0:y1,x0:x1])
+			#plt.imshow(img[y0:y1,x0:x1])
 
 	# Computation of the embeddings for unknown faces
 	#print('computing embeddings')
@@ -165,40 +166,78 @@ def embeddingUnknownFaces(unknownPath, sess, embeddings,
 	return unknownFaces_embs, unknownFaceCenter
 
 def getNamesAndCoordinates(unknownFaces_embs, knownFaces_embs, unknownFaceCenter, names):
-	# return a matrix of euclidian distance pair by pairs
-	dist = distance.cdist(unknownFaces_embs,
-                      knownFaces_embs)
-                      
-	distest = dist.copy()
-    
-	for i in range (distest.shape[0]):     
-		print('hello')           
-		where = np.where(distest == distest.min())
-		n = names[int(where[1])]
-		print('name', n)
-		c = unknownFaceCenter[int(where[0])]
-		print('center' , c)
-		d = distest.min()
-		print("distance", d)
-		distest[where[0]] = np.inf
-		distest[:, where[1]] = np.inf
-		print('pouet')
-		#distest.delete(where)
-	
-	# We look for the index that minimize the euclidian distance 
-	# for each row of the euclidian distance pair by pairs matrix
-	minIndex = np.apply_along_axis(np.argmin, axis=1, arr=dist)
-	
-	dictionary = dict()
-	print('centerCoordinate', len(unknownFaceCenter))
-	for i, index in enumerate(minIndex):
-		#print(index)
-		n = names[index]
-		#print('name', n)
-		c = unknownFaceCenter[i]
-		#print('center' , c)
-		d = dist[i][index]
-		#print("distance", d)
+	# Creation of a dict 'name to index' in the unknownFaces_embs
+	NtoI = dict()
+	for e in set(names):
+		NtoI[e] = [i for i, j in enumerate(names) if j == e]
 		
+	# return a matrix of euclidian distance pair by pairs
+	dist = distance.cdist(unknownFaces_embs, knownFaces_embs)
+                      
+	'''  Construction of an array containing only the smallest value of all
+    the distance between the embedding of the same person and 
+    the embeddings of the detected faces 
+    '''
+	# Creation of an nan object as an empty array fo the smallest values 
+	smallestArray = np.nan 
+    
+    # Loop over all the person of the database
+	for key, value in NtoI.iteritems():
+		
+		# Creation of a vector of the smallest value for the different detection for one person
+		test = np.vstack((dist[:, value[0]], dist[:, value[1]], dist[:, value[2]]))
+		indexes = np.apply_along_axis(np.argmin, axis=1, arr=test.transpose())
+    
+		# Fill the array with the smallest value one person for each detection
+		smallestSub = []
+		for i, l in enumerate(test.T):
+			smallestSub.append(l[indexes[i]])
+		if np.isnan(smallestArray).all() == True:
+			smallestArray = smallestSub
+		else:
+			smallestArray = np.vstack((smallestArray, smallestSub))
+    	
+	''' Usage of the Hungarian algorithm to minimze the sum of the 
+	distance between matched embeddings'''
+	
+	# Creation of the Munkres object - can be used for several problem
+	m = Munkres()
+	
+	# Feed the Munkres object with a copy 
+	test = np.array(smallestArray.T)
+	indexes = m.compute(test)
+	
+	n = []
+	c = []
+	d = []
+	for row, column in indexes:
+		center = unknownFaceCenter[row]
+		c .append(center)
+		#print('center : ', center)
+		name = NtoI.keys()[column]
+		n.append(name)
+		#print('name : ', name)
+		cost = smallestArray.T[row][column]
+		d.append(cost)
+		#print('cost : ', cost)
+	
+	#print(smallestArray.T)
+	
 	return n, c, d
+	
+def faceRecognition(pathsKnown, names, pathUnknown, sess, embeddings,
+images_in, phase_train_in, pnet, rnet, onet, df):
+	
+	# detection parameters
+	minsize = 20 
+	threshold = [ 0.75, 0.75, 0.75 ]
+	factor = 0.709
+                   
+	unknownFaces_embs, centerCoordinates = embeddingUnknownFaces(pathUnknown,
+		sess, embeddings, images_in, phase_train_in, pnet, rnet, onet, 
+		minsize, threshold, factor) 
+		
+	return getNamesAndCoordinates(np.vstack(unknownFaces_embs), pd.DataFrame.as_matrix(df), 
+                      centerCoordinates, names)
+	
 	
