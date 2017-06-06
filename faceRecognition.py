@@ -19,7 +19,6 @@ def embeddingKnownFaces(pathsKnown, names, sess, embeddings,
 	knownFace = []
 	print('detecting faces...')
 	for path in pathsKnown:
-		#display(Image(path))
 		img = scipy.misc.imread(path)
 		bbs, kps = align.detect_face.detect_face(img, minsize, 
 												 pnet, rnet, onet, 
@@ -44,9 +43,7 @@ def embeddingKnownFaces(pathsKnown, names, sess, embeddings,
 				y0 = np.maximum(y0 - margin//2, 0)
 				x1 = np.minimum(x1 + margin//2, img.shape[1])
 				y1 = np.minimum(y1 + margin//2, img.shape[0])
-				#plt.imshow(img[y0:y1,x0:x1])
 					 
-	#print('done!')  
 		
 	# Computation of the embeddings for known faces
 	#print('computing embeddings')
@@ -71,7 +68,6 @@ def embeddingKnownFaces(pathsKnown, names, sess, embeddings,
 			(size, size)))
 		img_faces = np.stack(img_faces)
 		knownCropped.append(img_faces)
-		#plt.imshow(img_faces[0])
 	  
 		# Embeddings
 		feed_dict = {
@@ -95,11 +91,9 @@ def embeddingUnknownFaces(unknownPath, sess, embeddings,
 	# Creation of an array of faces that will be compared to known faces with an array of corresponding
 	# faces (cropped images of the face detection)
 	unknownFace = []
-	#unknownBoxes = []
 	unknownKeypoints = []
 	
 	img = scipy.misc.imread(unknownPath) 
-	#display(Image(unknownPath))
 	bbs, kps = align.detect_face.detect_face(img, minsize, 
 												 pnet, rnet, onet, threshold, factor)
 												
@@ -111,7 +105,6 @@ def embeddingUnknownFaces(unknownPath, sess, embeddings,
 	if len(kps) != 0:  
 		# add the image in the face array
 		unknownFace.append(img)
-		#unknownBoxes.append(bbs)
 		unknownKeypoints.append(kps)
 			
 		# Display the face only in order to check if the face was corretly detected
@@ -122,7 +115,6 @@ def embeddingUnknownFaces(unknownPath, sess, embeddings,
 			y0 = np.maximum(y0 - margin//2, 0)
 			x1 = np.minimum(x1 + margin//2, img.shape[1])
 			y1 = np.minimum(y1 + margin//2, img.shape[0])
-			#plt.imshow(img[y0:y1,x0:x1])
 
 	# Computation of the embeddings for unknown faces
 	#print('computing embeddings')
@@ -144,7 +136,6 @@ def embeddingUnknownFaces(unknownPath, sess, embeddings,
 		y0 = bb[1].astype(np.int32)
 		x1 = bb[2].astype(np.int32)
 		y1 = bb[3].astype(np.int32)
-		#for x0,y0,x1,y1,_ in bb: #.astype(np.int32):
 		x0 = np.maximum(x0 - margin//2, 0)
 		y0 = np.maximum(y0 - margin//2, 0)
 		x1 = np.minimum(x1 + margin//2, img.shape[1])
@@ -161,7 +152,6 @@ def embeddingUnknownFaces(unknownPath, sess, embeddings,
 		}
 
 		unknownFaces_embs.append(sess.run(embeddings, feed_dict))
-	#print('done!')
 	
 	return unknownFaces_embs, unknownFaceCenter
 
@@ -213,15 +203,12 @@ def getNamesAndCoordinates(unknownFaces_embs, knownFaces_embs, unknownFaceCenter
 	for row, column in indexes:
 		center = unknownFaceCenter[row]
 		c .append(center)
-		#print('center : ', center)
+
 		name = NtoI.keys()[column]
 		n.append(name)
-		#print('name : ', name)
+
 		cost = smallestArray.T[row][column]
 		d.append(cost)
-		#print('cost : ', cost)
-	
-	#print(smallestArray.T)
 	
 	return n, c, d
 	
