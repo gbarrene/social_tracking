@@ -224,7 +224,11 @@ images_in, phase_train_in, pnet, rnet, onet, df):
 		sess, embeddings, images_in, phase_train_in, pnet, rnet, onet, 
 		minsize, threshold, factor) 
 		
-	return getNamesAndCoordinates(np.vstack(unknownFaces_embs), pd.DataFrame.as_matrix(df), 
+	# Check if at least one face is detected, otherwise return empty list
+	if len(unknownFaces_embs) == 0:
+		return [], [], []
+	else:
+		return getNamesAndCoordinates(np.vstack(unknownFaces_embs), pd.DataFrame.as_matrix(df), 
                       centerCoordinates, names)
 	
 	
