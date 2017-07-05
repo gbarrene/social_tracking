@@ -5,7 +5,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import scipy.spatial.distance as distance
-from munkres import Munkres
+from blurDetection import *
+
 
 def embeddingKnownFaces(pathsKnown, names, sess, embeddings, 
 	images_in, phase_train_in, pnet, rnet, onet, 
@@ -17,8 +18,10 @@ def embeddingKnownFaces(pathsKnown, names, sess, embeddings,
 	knownBoxes = []
 	knownKeypoints = []
 	knownFace = []
+	
 	print('detecting faces...')
 	for path in pathsKnown:
+		print path
 		img = scipy.misc.imread(path)
 		bbs, kps = align.detect_face.detect_face(img, minsize, 
 												 pnet, rnet, onet, 
@@ -57,6 +60,9 @@ def embeddingKnownFaces(pathsKnown, names, sess, embeddings,
 
 	# Fill arrays
 	for img, bbs in zip(knownFace, knownBoxes):
+		plt.figure()
+		plt.imshow(img)
+		plt.close()
 		img_faces = []
 		# Cropped faces
 		for x0,y0,x1,y1,_ in bbs.astype(np.int32):
@@ -97,6 +103,7 @@ def embeddingUnknownFaces(unknownPath, sess, embeddings,
 	bbs, kps = align.detect_face.detect_face(img, minsize, 
 												 pnet, rnet, onet, threshold, factor)
 												
+	
 	kps = np.asarray(kps)
 	#print(kps.shape)
 	kps = kps.reshape([2,5,-1]).T
@@ -126,6 +133,7 @@ def embeddingUnknownFaces(unknownPath, sess, embeddings,
 	unknownFaces_embs = []
 	unknownCropped = []
 	unknownFaceCenter =  []
+	feed_dict = {}
 
 	
 	# Fill arrays
@@ -142,27 +150,27 @@ def embeddingUnknownFaces(unknownPath, sess, embeddings,
 		y1 = np.minimum(y1 + margin//2, img.shape[0])
 		img_faces.append(scipy.misc.imresize(img[y0:y1,x0:x1], (size, size)))
 		img_faces = np.stack(img_faces)
-		unknownCropped.append(img_faces)
-		unknownFaceCenter.append([(x1+x0)/2, (y1+y0)/2])
+		
+		#Check if the face is blurry
+		if not is_blur(cv2.imread(unknownPath)[y0:y1,x0:x1], 125):
+			unknownCropped.append(scipy.misc.imresize(img[y0:y1,x0:x1], (size, size)))
+			unknownFaceCenter.append([(x1+x0)/2, (y1+y0)/2])
 	  
-		# Embeddings
-		feed_dict = {
-			images_in : img_faces.astype(np.float32) / 255.0,
-			phase_train_in : False,
-		}
-
-		unknownFaces_embs.append(sess.run(embeddings, feed_dict))
-	
+			# Embeddings
+			feed_dict = {
+				images_in : img_faces.astype(np.float32) / 255.0,
+				phase_train_in : False,
+			}
+			if bool(feed_dict):
+				unknownFaces_embs.append(sess.run(embeddings, feed_dict))
+		
 	return unknownFaces_embs, unknownFaceCenter
 
 def getNamesAndCoordinates(unknownFaces_embs, knownFaces_embs, unknownFaceCenter, names):
-	# Creation of a dict 'name to index' in the unknownFaces_embs
-	NtoI = dict()
-	for e in set(names):
-		NtoI[e] = [i for i, j in enumerate(names) if j == e]
 		
 	# return a matrix of euclidian distance pair by pairs
 	dist = distance.cdist(unknownFaces_embs, knownFaces_embs)
+	
                       
 	'''  Construction of an array containing only the smallest value of all
     the distance between the embedding of the same person and 
@@ -171,11 +179,9 @@ def getNamesAndCoordinates(unknownFaces_embs, knownFaces_embs, unknownFaceCenter
 	# Creation of an nan object as an empty array fo the smallest values 
 	smallestArray = np.nan 
     
-    # Loop over all the person of the database
-	for key, value in NtoI.iteritems():
-		
+	for i in range(0, dist.shape[1], 3):
 		# Creation of a vector of the smallest value for the different detection for one person
-		test = np.vstack((dist[:, value[0]], dist[:, value[1]], dist[:, value[2]]))
+		test = np.vstack((dist[:, i], dist[:, i+1], dist[:, i+2]))
 		indexes = np.apply_along_axis(np.argmin, axis=1, arr=test.transpose())
     
 		# Fill the array with the smallest value one person for each detection
@@ -186,31 +192,7 @@ def getNamesAndCoordinates(unknownFaces_embs, knownFaces_embs, unknownFaceCenter
 			smallestArray = smallestSub
 		else:
 			smallestArray = np.vstack((smallestArray, smallestSub))
-    	
-	''' Usage of the Hungarian algorithm to minimze the sum of the 
-	distance between matched embeddings'''
-	
-	# Creation of the Munkres object - can be used for several problem
-	m = Munkres()
-	
-	# Feed the Munkres object with a copy 
-	test = np.array(smallestArray.T)
-	indexes = m.compute(test)
-	
-	n = []
-	c = []
-	d = []
-	for row, column in indexes:
-		center = unknownFaceCenter[row]
-		c .append(center)
-
-		name = NtoI.keys()[column]
-		n.append(name)
-
-		cost = smallestArray.T[row][column]
-		d.append(cost)
-	
-	return n, c, d
+	return smallestArray, unknownFaceCenter
 	
 def faceRecognition(pathsKnown, names, pathUnknown, sess, embeddings,
 images_in, phase_train_in, pnet, rnet, onet, df):
