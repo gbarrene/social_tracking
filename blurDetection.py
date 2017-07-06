@@ -13,14 +13,7 @@ def is_blur(image, blurThreshold):
 	# load the image, convert it to grayscale, and compute the
 	# focus measure of the image using the Variance of Laplacian
 	# method
-	#image = cv2.imread(imagePath)
 	gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 	fm = variance_of_laplacian(gray)
  
-	# if the focus measure is less than the supplied threshold,
-	# then the image should be considered "blurry"
-	if fm < blurThreshold:
-		print "Blurry"
-		return True
-	else:
-		return False
+	return fm
