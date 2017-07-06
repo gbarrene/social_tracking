@@ -133,6 +133,7 @@ def embeddingUnknownFaces(unknownPath, sess, embeddings,
 	unknownFaces_embs = []
 	unknownCropped = []
 	unknownFaceCenter =  []
+	blurScore = []
 	feed_dict = {}
 
 	
@@ -152,19 +153,19 @@ def embeddingUnknownFaces(unknownPath, sess, embeddings,
 		img_faces = np.stack(img_faces)
 		
 		#Check if the face is blurry
-		if not is_blur(cv2.imread(unknownPath)[y0:y1,x0:x1], 125):
-			unknownCropped.append(scipy.misc.imresize(img[y0:y1,x0:x1], (size, size)))
-			unknownFaceCenter.append([(x1+x0)/2, (y1+y0)/2])
+		blurScore.append(is_blur(cv2.imread(unknownPath)[y0:y1,x0:x1], 125))
+		unknownCropped.append(scipy.misc.imresize(img[y0:y1,x0:x1], (size, size)))
+		unknownFaceCenter.append([(x1+x0)/2, (y1+y0)/2])
 	  
 			# Embeddings
-			feed_dict = {
-				images_in : img_faces.astype(np.float32) / 255.0,
-				phase_train_in : False,
-			}
-			if bool(feed_dict):
-				unknownFaces_embs.append(sess.run(embeddings, feed_dict))
+		feed_dict = {
+			images_in : img_faces.astype(np.float32) / 255.0,
+			phase_train_in : False,
+		}
+		if bool(feed_dict):
+			unknownFaces_embs.append(sess.run(embeddings, feed_dict))
 		
-	return unknownFaces_embs, unknownFaceCenter
+	return [unknownFaces_embs, unknownFaceCenter, blurScore]
 
 def getNamesAndCoordinates(unknownFaces_embs, knownFaces_embs, unknownFaceCenter, names):
 		
@@ -192,7 +193,7 @@ def getNamesAndCoordinates(unknownFaces_embs, knownFaces_embs, unknownFaceCenter
 			smallestArray = smallestSub
 		else:
 			smallestArray = np.vstack((smallestArray, smallestSub))
-	return smallestArray, unknownFaceCenter
+	return [smallestArray, unknownFaceCenter]
 	
 def faceRecognition(pathsKnown, names, pathUnknown, sess, embeddings,
 images_in, phase_train_in, pnet, rnet, onet, df):
@@ -202,7 +203,7 @@ images_in, phase_train_in, pnet, rnet, onet, df):
 	threshold = [ 0.75, 0.75, 0.75 ]
 	factor = 0.709
                    
-	unknownFaces_embs, centerCoordinates = embeddingUnknownFaces(pathUnknown,
+	unknownFaces_embs, centerCoordinates, blurScore = embeddingUnknownFaces(pathUnknown,
 		sess, embeddings, images_in, phase_train_in, pnet, rnet, onet, 
 		minsize, threshold, factor) 
 		
@@ -210,7 +211,8 @@ images_in, phase_train_in, pnet, rnet, onet, df):
 	if len(unknownFaces_embs) == 0:
 		return [], [], []
 	else:
-		return getNamesAndCoordinates(np.vstack(unknownFaces_embs), pd.DataFrame.as_matrix(df), 
-                      centerCoordinates, names)
+		result = getNamesAndCoordinates(np.vstack(unknownFaces_embs), pd.DataFrame.as_matrix(df), 
+                      centerCoordinates, names) + [blurScore]
+		return result
 	
 	
