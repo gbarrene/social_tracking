@@ -8,7 +8,7 @@ import scipy.spatial.distance as distance
 from blurDetection import *
 
 
-def embeddingKnownFaces(pathsKnown, names, sess, embeddings, 
+def embeddingKnownFaces(pathsKnown, names, height, sess, embeddings, 
 	images_in, phase_train_in, pnet, rnet, onet, 
 	minsize, threshold, factor):
  
@@ -88,7 +88,9 @@ def embeddingKnownFaces(pathsKnown, names, sess, embeddings,
 		return 0	
 	else:
 		data = np.vstack(knownFaces_embs)
-		return pd.DataFrame(data,index=names)
+		df = pd.DataFrame(data,index=names)
+		df['height'] = height
+		return df
 		
 def embeddingUnknownFaces(unknownPath, sess, embeddings, 
 	images_in, phase_train_in, pnet, rnet, onet, 
@@ -164,36 +166,8 @@ def embeddingUnknownFaces(unknownPath, sess, embeddings,
 		}
 		if bool(feed_dict):
 			unknownFaces_embs.append(sess.run(embeddings, feed_dict))
-		
 	return [unknownFaces_embs, unknownFaceCenter, blurScore]
 
-def getNamesAndCoordinates(unknownFaces_embs, knownFaces_embs, unknownFaceCenter, names):
-		
-	# return a matrix of euclidian distance pair by pairs
-	dist = distance.cdist(unknownFaces_embs, knownFaces_embs)
-	
-                      
-	'''  Construction of an array containing only the smallest value of all
-    the distance between the embedding of the same person and 
-    the embeddings of the detected faces 
-    '''
-	# Creation of an nan object as an empty array fo the smallest values 
-	smallestArray = np.nan 
-    
-	for i in range(0, dist.shape[1], 3):
-		# Creation of a vector of the smallest value for the different detection for one person
-		test = np.vstack((dist[:, i], dist[:, i+1], dist[:, i+2]))
-		indexes = np.apply_along_axis(np.argmin, axis=1, arr=test.transpose())
-    
-		# Fill the array with the smallest value one person for each detection
-		smallestSub = []
-		for i, l in enumerate(test.T):
-			smallestSub.append(l[indexes[i]])
-		if np.isnan(smallestArray).all() == True:
-			smallestArray = smallestSub
-		else:
-			smallestArray = np.vstack((smallestArray, smallestSub))
-	return [smallestArray, unknownFaceCenter]
 	
 def faceRecognition(pathsKnown, names, pathUnknown, sess, embeddings,
 images_in, phase_train_in, pnet, rnet, onet, df):
@@ -202,17 +176,11 @@ images_in, phase_train_in, pnet, rnet, onet, df):
 	minsize = 20 
 	threshold = [ 0.75, 0.75, 0.75 ]
 	factor = 0.709
+	
                    
 	unknownFaces_embs, centerCoordinates, blurScore = embeddingUnknownFaces(pathUnknown,
 		sess, embeddings, images_in, phase_train_in, pnet, rnet, onet, 
 		minsize, threshold, factor) 
 		
-	# Check if at least one face is detected, otherwise return empty list
-	if len(unknownFaces_embs) == 0:
-		return [], [], []
-	else:
-		result = getNamesAndCoordinates(np.vstack(unknownFaces_embs), pd.DataFrame.as_matrix(df), 
-                      centerCoordinates, names) + [blurScore]
-		return result
-	
+	return unknownFaces_embs, centerCoordinates, blurScore
 	
